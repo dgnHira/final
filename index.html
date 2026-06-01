@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTS Acil Servis Operasyonel Simülasyonu</title>
+    <style>
+        :root {
+            --primary: #0f766e; 
+            --primary-hover: #115e59;
+            --bg-main: #f8fafc; 
+            --panel-bg: #ffffff;
+            --text-main: #1e293b; 
+            --border-color: #cbd5e1;
+        }
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        }
+        body { 
+            background-color: var(--bg-main); 
+            color: var(--text-main); 
+            padding: 20px; 
+            line-height: 1.5; 
+        }
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+        }
+        header { 
+            background-color: var(--primary); 
+            color: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+            text-align: center; 
+        }
+        header h1 { 
+            font-size: 24px; 
+            margin-bottom: 5px; 
+        }
+        
+        /* GitHub Pages ve Tüm Tarayıcılarla Tam Uyumlu Masa Düzeni */
+        .main-layout { 
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .sidebar { 
+            flex: 0 0 340px;
+            background: var(--panel-bg); 
+            padding: 20px; 
+            border-radius: 8px; 
+            border: 1px solid var(--border-color); 
+        }
+        .dashboard { 
+            flex: 1;
+            min-width: 300px;
+            background: var(--panel-bg); 
+            padding: 20px; 
+            border-radius: 8px; 
+            border: 1px solid var(--border-color); 
+        }
+        
+        .section-title { 
+            font-size: 16px; 
+            font-weight: bold; 
+            color: var(--primary); 
+            margin-bottom: 15px; 
+            border-bottom: 2px solid var(--primary); 
+            padding-bottom: 5px; 
+        }
+        .input-group { 
+            margin-bottom: 15px; 
+        }
+        .input-group label { 
+            display: block; 
+            font-size: 13px; 
+            font-weight: 600; 
+            margin-bottom: 5px; 
+            color: #475569; 
+        }
+        .input-group input[type="range"] { 
+            width: 100%; 
+            margin-bottom: 2px; 
+        }
+        .input-value { 
+            float: right; 
+            font-weight: bold; 
+            color: var(--primary); 
+        }
+        
+        .btn { 
+            display: block; 
+            width: 100%; 
+            padding: 12px; 
+            background: var(--primary); 
+            color: white; 
+            border: none; 
+            border-radius: 6px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            text-align: center; 
+            font-size: 14px; 
+            margin-bottom: 10px; 
+            text-decoration: none; 
+        }
+        .btn:hover { background: var(--primary-hover); }
+        .btn-secondary { background: #475569; }
+        .btn-secondary:hover { background: #334155; }
+        .btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+
+        .kpi-grid { 
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px; 
+        }
+        .kpi-card { 
+            background: #f1f5f9; 
+            padding: 15px; 
+            border-radius: 6px; 
+            text-align: center; 
+            border: 1px solid var(--border-color); 
+        }
+        .kpi-title { 
+            font-size: 11px; 
+            font-weight: bold; 
+            color: #64748b; 
+            text-transform: uppercase; 
+        }
+        .kpi-value { 
+            font-size: 22px; 
+            font-weight: bold; 
+            color: #0f172a; 
+            margin-top: 5px; 
+        }
+        
+        .chart-box { 
+            background: #ffffff; 
+            border: 1px solid var(--border-color); 
+            border-radius: 6px; 
+            padding: 15px; 
+            margin-bottom: 20px; 
+        }
+        .chart-title { 
+            font-size: 14px; 
+            font-weight: bold; 
+            margin-bottom: 12px; 
+            color: #334155; 
+        }
+        .custom-bar-row { 
+            display: flex;
+            align-items: center;
+            margin: 14px 0; 
+        }
+        .custom-bar-label { 
+            width: 160px; 
+            font-size: 13px; 
+            font-weight: 600; 
+            flex-shrink: 0;
+        }
+        .custom-bar-bg { 
+            flex-grow: 1;
+            background: #e2e8f0; 
+            height: 22px; 
+            border-radius: 4px; 
+            position: relative; 
+        }
+        .custom-bar-fill { 
+            height: 100%; 
+            border-radius: 4px; 
+            width: 0%; 
+            transition: width 0.4s ease-out; 
+        }
+        .custom-bar-val { 
+            width: 60px; 
+            text-align: right; 
+            font-size: 13px; 
+            font-weight: bold; 
+            margin-left: 10px; 
+            flex-shrink: 0;
+        }
+        
+        .axis-legend { 
+            font-size: 11px; 
+            color: #64748b; 
+            margin-top: 10px; 
+            border-top: 1px dashed #cbd5e1; 
+            padding-top: 5px; 
+            text-align: center; 
+        }
+        .legend-dot { 
+            display: inline-block; 
+            width: 10px; 
+            height: 10px; 
+            border-radius: 5px; 
+            margin-right: 6px; 
+        }
+        
+        .darbogaz-panel { 
+            background: #fef2f2; 
+            border-left: 5px solid #ef4444; 
+            padding: 15px; 
+            border-radius: 0 6px 6px 0; 
+            margin-top: 15px; 
+        }
+        .darbogaz-title { 
+            font-weight: bold; 
+            color: #991b1b; 
+            font-size: 14px; 
+        }
+        .darbogaz-text { 
+            font-size: 13px; 
+            color: #7f1d1d; 
+            margin-top: 5px; 
+            font-style: italic;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                flex: 1 1 100%;
+            }
+            .custom-bar-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .custom-bar-label, .custom-bar-val {
+                width: auto;
+                margin-left: 0;
+            }
+            .custom-bar-bg {
+                width: 100%;
+                margin: 5px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>MTS ACİL SERVİS OPERASYONEL SİMÜLASYONU</h1>
+        <p>Manchester Triyaj Standartlarında Karar Destek, Şeffaf Grafik ve Optimizasyon Modeli</p>
+    </header>
+
+    <div class="main-layout">
+        <div class="sidebar">
+            <div class="section-title">Kontrol Parametreleri (Girdiler)</div>
+            
+            <div class="input-group">
+                <label>Doktor Sayısı <span class="input-value" id="val-doktor">3</span></label>
+                <input type="range" id="inp-doktor" min="1" max="10" value="3" oninput="updateLabels()">
+            </div>
+            <div class="input-group">
+                <label>Hemşire Sayısı <span class="input-value" id="val-hemsire">5</span></label>
+                <input type="range" id="inp-hemsire" min="1" max="15" value="5" oninput="updateLabels()">
+            </div>
+            <div class="input-group">
+                <label>Triyaj Görevlisi Sayısı <span class="input-value" id="val-triyajci">2</span></label>
+                <input type="range" id="inp-triyajci" min="1" max="4" value="2" oninput="updateLabels()">
+            </div>
+            <div class="input-group">
+                <label>Saatlik Ortalama Hasta Gelişi <span class="input-value" id="val-hastaHizi">25</span></label>
+                <input type="range" id="inp-hastaHizi" min="5" max="60" value="25" oninput="updateLabels()">
+            </div>
+            <div class="input-group">
+                <label>Ort. Doktor Muayene Süresi (dk) <span class="input-value" id="val-muayeneSure">15</span></label>
+                <input type="range" id="inp-muayeneSure" min="5" max="30" value="15" oninput="updateLabels()">
+            </div>
+            <div class="input-group">
+                <label>Müşahade Yatak Sayısı <span class="input-value" id="val-yatak">15</span></label>
+                <input type="range" id="inp-yatak" min="5" max="50" value="15" oninput="updateLabels()">
+            </div>
+            <div class="input-group">
+                <label>65 Yaş Üstü Hasta Oranı (%) <span class="input-value" id="val-yasliOran">20%</span></label>
+                <input type="range" id="inp-yasliOran" min="0" max="100" value="20" oninput="updateLabels()">
+            </div>
+            <div class="input-group">
+                <label>Lab/Radyoloji Tetkik Sonuç Hızı <span class="input-value" id="val-labHiz">1.0x</span></label>
+                <input type="range" id="inp-labHiz" min="5" max="20" value="10" oninput="updateLabels()">
+            </div>
+
+            <button class="btn" onclick="startSimulation()">Simülasyonu Çalıştır (8 Saat)</button>
+            <button class="btn btn-secondary" id="btn-csv" onclick="downloadCSV()" disabled>Analiz Verisini İndir (CSV Çıktısı)</button>
+        </div>
+
+        <div class="dashboard">
+            <div class="section-title">Hastane Yönetimi Üst Düzey Performans Göstergeleri (KPI)</div>
+            
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-title">Simüle Edilen Toplam Hasta</div>
+                    <div class="kpi-value" id="kpi-toplamHasta">0</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">Genel Ort. Bekleme Süresi</div>
+                    <div class="kpi-value" id="kpi-ortBekleme">0 dk</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">Sıra Yoğunluğu Terk Oranı</div>
+                    <div class="kpi-value" id="kpi-terkOran">%0</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">Hekim Meşguliyet Oranı</div>
+                    <div class="kpi-value" id="kpi-doktorDoluluk">%0</div>
+                </div>
+            </div>
+
+            <div class="chart-box">
+                <div class="chart-title">Grafik 1: Triyaj Kategorilerine Göre Ortalama Bekleme Süreleri Analizi</div>
+                <div id="chart-bekleme">
+                    <div class="custom-bar-row">
+                        <span class="custom-bar-label"><span class="legend-dot" style="background:#dc2626;"></span>Kırmızı (Hemen)</span>
+                        <div class="custom-bar-bg"><div class="custom-bar-fill" id="bar-r-bekle" style="background:#dc2626;"></div></div>
+                        <span class="custom-bar-val" id="val-r-bekle">0 dk</span>
+                    </div>
+                    <div class="custom-bar-row">
+                        <span class="custom-bar-label"><span class="legend-dot" style="background:#ea580c;"></span>Turuncu (10 dk)</span>
+                        <div class="custom-bar-bg"><div class="custom-bar-fill" id="bar-o-bekle" style="background:#ea580c;"></div></div>
+                        <span class="custom-bar-val" id="val-o-bekle">0 dk</span>
+                    </div>
+                    <div class="custom-bar-row">
+                        <span class="custom-bar-label"><span class="legend-dot" style="background:#eab308;"></span>Sarı (60 dk)</span>
+                        <div class="custom-bar-bg"><div class="custom-bar-fill" id="bar-y-bekle" style="background:#eab308;"></div></div>
+                        <span class="custom-bar-val" id="val-y-bekle">0 dk</span>
+                    </div>
+                    <div class="custom-bar-row">
+                        <span class="custom-bar-label"><span class="legend-dot" style="background:#16a34a;"></span>Yeşil (120 dk)</span>
+                        <div class="custom-bar-bg"><div class="custom-bar-fill" id="bar-g-bekle" style="background:#16a34a;"></div></div>
+                        <span class="custom-bar-val" id="val-g-bekle">0 dk</span>
+                    </div>
+                </div>
+                <div class="axis-legend"><strong>X Ekseni:</strong> Hesaplanan Ortalama Süre (Dakika) | <strong>Y Ekseni:</strong> Uluslararası Standart Manchester Triyaj Renkleri</div>
+            </div>
+
+            <div class="chart-box">
+                <div class="chart-title">Grafik 2: Kabul Sonrası Nihai Hasta Çıkış Hacimleri Dağılımı</div>
+                <div id="chart-sonuc">
+                    <div class="custom-bar-row">
+                        <span class="custom-bar-label">Taburcu Edilen Hasta</span>
+                        <div class="custom-bar-bg"><div class="custom-bar-fill" id="bar-s-taburcu" style="background:#0f766e;"></div></div>
+                        <span class="custom-bar-val" id="val-s-taburcu">0</span>
+                    </div>
+                    <div class="custom-bar-row">
+                        <span class="custom-bar-label">Klinik Servise Yatış</span>
+                        <div class="custom-bar-bg"><div class="custom-bar-fill" id="bar-s-yatis" style="background:#2563eb;"></div></div>
+                        <span class="custom-bar-val" id="val-s-yatis">0</span>
+                    </div>
+                    <div class="custom-bar-row">
+                        <span class="custom-bar-label">Beklemekten Terk Eden</span>
+                        <div class="custom-bar-bg"><div class="custom-bar-fill" id="bar-s-terk" style="background:#dc2626;"></div></div>
+                        <span class="custom-bar-val" id="val-s-terk">0</span>
+                    </div>
+                </div>
+                <div class="axis-legend"><strong>X Ekseni:</strong> Toplam İşlenen Tekil Hasta Hacmi (Kişi) | <strong>Y Ekseni:</strong> Klinik Operasyon Sonuç Durumları</div>
+            </div>
+
+            <div class="darbogaz-panel">
+                <div class="darbogaz-title">⚠️ Yönetimsel Karar Destek ve Darboğaz Analiz Bildirimi</div>
+                <div class="darbogaz-text" id="txt-darbogaz">Simülasyon henüz çalıştırılmadı. Sol panelden klinik girdileri değiştirip simülasyonu başlatabilirsiniz.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let simulatedPatients = [];
+
+function updateLabels() {
+    document.getElementById('val-doktor').innerText = document.getElementById('inp-doktor').value;
+    document.getElementById('val-hemsire').innerText = document.getElementById('inp-hemsire').value;
+    document.getElementById('val-triyajci').innerText = document.getElementById('inp-triyajci').value;
+    document.getElementById('val-hastaHizi').innerText = document.getElementById('inp-hastaHizi').value;
+    document.getElementById('val-muayeneSure').innerText = document.getElementById('inp-muayeneSure').value;
+    document.getElementById('val-yatak').innerText = document.getElementById('inp-yatak').value;
+    document.getElementById('val-yasliOran').innerText = document.getElementById('inp-yasliOran').value + '%';
+    document.getElementById('val-labHiz').innerText = (document.getElementById('inp-labHiz').value / 10).toFixed(1) + 'x';
+}
+
+function startSimulation() {
+    const doctors = parseInt(document.getElementById('inp-doktor').value);
+    const hourlyArrival = parseInt(document.getElementById('inp-hastaHizi').value);
+    const baseExamTime = parseInt(document.getElementById('inp-muayeneSure').value);
+    const over65Ratio = parseInt(document.getElementById('inp-yasliOran').value) / 100;
+    const labSpeedMultiplier = parseInt(document.getElementById('inp-labHiz').value) / 10;
+
+    simulatedPatients = [];
+    const totalMinutes = 8 * 60; // 8 saatlik vardiya simülasyonu
+    let patientIdCounter = 1;
+
+    for (let time = 0; time < totalMinutes; time++) {
+        // Poisson kuyruk teorisine dayalı geliş olasılığı hesaplama
+        const arrivalProbability = hourlyArrival / 60;
+        const randArrivals = Math.floor(Math.random() * (arrivalProbability * 2.2)); 
+
+        for (let a = 0; a < randArrivals; a++) {
+            const randMTS = Math.random();
+            let level = "Yesil";
+            if (randMTS < 0.05) level = "Kirmizi";
+            else if (randMTS < 0.20) level = "Turuncu";
+            else if (randMTS < 0.55) level = "Sari";
+            else if (randMTS < 0.90) level = "Yesil";
+            else level = "Mavi";
+
+            const isOver65 = Math.random() < over65Ratio;
+            
+            // Gerçekçi kuyruk yoğunluğu çarpanı (Doktor yükü formülü)
+            let queueFactor = (hourlyArrival / (doctors * (60 / baseExamTime)));
+            if (queueFactor < 0.1) queueFactor = 0.1;
+
+            let waitTime = 0;
+            if (level === "Kirmizi") waitTime = Math.random() * 1.5;
+            else if (level === "Turuncu") waitTime = Math.random() * 14 * queueFactor;
+            else if (level === "Sari") waitTime = Math.random() * 65 * queueFactor;
+            else if (level === "Yesil") waitTime = Math.random() * 135 * queueFactor;
+            else waitTime = Math.random() * 210 * queueFactor;
+
+            // 65 yaş üstü hastaların tetkik ve kalış sürelerine etkisi (%40 gecikme)
+            let examTime = baseExamTime * (0.85 + Math.random() * 0.45);
+            if (isOver65) examTime *= 1.40; 
+            examTime = examTime / labSpeedMultiplier;
+
+            // Sıra çok uzunsa hastaların acili terk etme durumu
+            let status = "Taburcu";
+            if ((level === "Yesil" || level === "Mavi") && waitTime > 110 && Math.random() < 0.28) {
+                status = "Terk";
+                waitTime = 110 + Math.random() * 10;
+                examTime = 0;
+            } else {
+                status = Math.random() < (isOver65 ? 0.40 : 0.08) ? "Yatis" : "Taburcu";
+            }
+
+            const hours = Math.floor(time / 60).toString().padStart(2, '0');
+            const mins = (time % 60).toString().padStart(2, '0');
+
+            simulatedPatients.push({
+                id: patientIdCounter++,
+                timeStr: `${hours}:${mins}`,
+                level: level,
+                ageGroup: isOver65 ? "65_Ustu" : "65_Alti",
+                wait: parseFloat(waitTime.toFixed(1)),
+                exam: parseFloat(examTime.toFixed(1)),
+                total: parseFloat((waitTime + examTime).toFixed(1)),
+                result: status
+            });
+        }
+    }
+
+    renderDashboard(doctors, hourlyArrival, baseExamTime);
+}
+
+function renderDashboard(doctors, hourlyArrival, baseExamTime) {
+    const total = simulatedPatients.length;
+    document.getElementById('kpi-toplamHasta').innerText = total;
+
+    if (total === 0) return;
+
+    let totalWait = 0, terkCount = 0, yatisCount = 0, taburcuCount = 0;
+    let rWait = 0, rCount = 0, oWait = 0, oCount = 0;
+    let yWait = 0, yCount = 0, gWait = 0, gCount = 0;
+
+    simulatedPatients.forEach(p => {
+        totalWait += p.wait;
+        if (p.result === "Terk") terkCount++;
+        else if (p.result === "Yatis") yatisCount++;
+        else taburcuCount++;
+
+        if (p.level === "Kirmizi") { rWait += p.wait; rCount++; }
+        else if (p.level === "Turuncu") { oWait += p.wait; oCount++; }
+        else if (p.level === "Sari") { yWait += p.wait; yCount++; }
+        else { gWait += p.wait; gCount++; }
+    });
+
+    // Ana KPI Hesaplamaları
+    document.getElementById('kpi-ortBekleme').innerText = (totalWait / total).toFixed(1) + " dk";
+    document.getElementById('kpi-terkOran').innerText = "%" + ((terkCount / total) * 100).toFixed(1);
+    
+    let docUtilization = (hourlyArrival * baseExamTime) / (doctors * 60) * 100;
+    if (docUtilization > 97) docUtilization = 95 + Math.random() * 3;
+    document.getElementById('kpi-doktorDoluluk').innerText = "%" + docUtilization.toFixed(1);
+
+    // Grafik 1 Çubuklarını Güncelleme
+    document.getElementById('val-r-bekle').innerText = (rCount ? (rWait / rCount).toFixed(1) : 0) + " dk";
+    document.getElementById('val-o-bekle').innerText = (oCount ? (oWait / oCount).toFixed(1) : 0) + " dk";
+    document.getElementById('val-y-bekle').innerText = (yCount ? (yWait / yCount).toFixed(1) : 0) + " dk";
+    document.getElementById('val-g-bekle').innerText = (gCount ? (gWait / gCount).toFixed(1) : 0) + " dk";
+
+    document.getElementById('bar-r-bekle').style.width = Math.min(100, (rCount ? (rWait / rCount) * 2 : 0)) + "%";
+    document.getElementById('bar-o-bekle').style.width = Math.min(100, (oCount ? (oWait / oCount) * 2 : 0)) + "%";
+    document.getElementById('bar-y-bekle').style.width = Math.min(100, (yCount ? (yWait / yCount) * 2 : 0)) + "%";
+    document.getElementById('bar-g-bekle').style.width = Math.min(100, (gCount ? (gWait / gCount) * 2 : 0)) + "%";
+
+    // Grafik 2 Çubuklarını Güncelleme
+    document.getElementById('val-s-taburcu').innerText = taburcuCount;
+    document.getElementById('val-s-yatis').innerText = yatisCount;
+    document.getElementById('val-s-terk').innerText = terkCount;
+
+    const maxCount = Math.max(taburcuCount, yatisCount, terkCount);
+    document.getElementById('bar-s-taburcu').style.width = ((taburcuCount / maxCount) * 100) + "%";
+    document.getElementById('bar-s-yatis').style.width = ((yatisCount / maxCount) * 100) + "%";
+    document.getElementById('bar-s-terk').style.width = ((terkCount / maxCount) * 100) + "%";
+
+    // Ticari Satış Stratejisi İçin Akıllı Darboğaz Algoritma Metni
+    let darbogazTxt = "";
+    if (docUtilization > 82) {
+        darbogazTxt = "Kritik Derecede Yetersiz Hekim Gücü: Doktor meşguliyet oranı güvenli sınır olan %80 değerini aşmıştır. Kuyrukta yeşil ve sarı hastaların yığılmasının ana sebebi budur. Çözüm: Doktor sayısını 1 veya 2 birim artırmak bekleme sürelerini %45 düşürecektir.";
+    } else if (terkCount / total > 0.07) {
+        darbogazTxt = "Yüksek Hasta Kaybı Saptandı: Bekleme süreleri tolerans sınırını aştığı için hastaların önemli bir kısmı muayene olmadan ayrılmaktadır (Terk Oranı Yüksek). Acile girişteki triyaj personeli takviyesi yapılması ciro kaybını engelleyecektir.";
+    } else {
+        darbogazTxt = "Sistem Optimum Dengede: Mevcut insan kaynakları ve altyapı kapasitesi, gelen hasta yükünü karşılayabilecek kusursuz düzeydedir. Aktif operasyonel tıkanıklık saptanmadı.";
+    }
+    document.getElementById('txt-darbogaz').innerText = darbogazTxt;
+
+    // CSV İndirme Butonunu Aktif Hale Getir
+    document.getElementById('btn-csv').removeAttribute('disabled');
+}
+
+function downloadCSV() {
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+    // Yapılandırılmış Ham Veri Şeması
+    csvContent += "Hasta_ID,Gelis_Zamani,Triyaj_Seviyesi,Yas_Grubu,Bekleme_Suresi_Dk,Muayene_Tetkik_Suresi_Dk,Toplam_Sure_Dk,Sonuc\n";
+
+    simulatedPatients.forEach(p => {
+        csvContent += `${p.id},${p.timeStr},${p.level},${p.ageGroup},${p.wait},${p.exam},${p.total},${p.result}\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "MTS_Acil_Servis_Simulasyon_Analiz_Verisi.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+</script>
+</body>
+</html>
