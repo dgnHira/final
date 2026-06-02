@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="tr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTS Karar Destek Sistemi - Acil Servis Akış Simülasyonu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Custom Scrollbar for dark theme */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        .dot {
+            width: 12px; height: 12px; border-radius: 50%; display: inline-block;
+            margin: 2px;
+            box-shadow: 0 0 8px currentColor;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+
+        .log-enter {
+            animation: slideDown 0.3s ease-out;
+        }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .mts-KIRMIZI { color: #ef4444; background-color: #ef4444; }
+        .mts-TURUNCU { color: #f97316; background-color: #f97316; }
+        .mts-SARI { color: #eab308; background-color: #eab308; }
+        .mts-YESIL { color: #22c55e; background-color: #22c55e; }
+        .mts-MAVI { color: #3b82f6; background-color: #3b82f6; }
+    </style>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#151e2e',
+                            900: '#0f172a',
+                            950: '#020617',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-950 text-slate-200 h-screen flex overflow-hidden selection:bg-blue-500/30">
+
+    <!-- Left Control Panel -->
+    <aside class="w-96 bg-slate-900 border-r border-slate-800 flex flex-col h-full z-10 shadow-2xl relative">
+        <div class="p-6 border-b border-slate-800">
+            <h1 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                MTS Simülasyon
+            </h1>
+            <p class="text-xs text-slate-400 mt-1">Karar Destek & Kaynak Yönetim Paneli</p>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 space-y-8">
+            <!-- Controls -->
+            <div class="space-y-6">
+                <!-- Lambda -->
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <label class="text-sm font-medium text-slate-300">Saatlik Geliş Hızı (λ)</label>
+                        <span id="lbl_lambda" class="text-sm font-bold text-blue-400">30</span>
+                    </div>
+                    <input type="range" id="inp_lambda" min="10" max="100" value="30" class="w-full accent-blue-500">
+                    <p class="text-[10px] text-slate-500">Poisson Dağılımı ortalaması (Hasta/Saat)</p>
+                </div>
+
+                <!-- Triage Staff -->
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <label class="text-sm font-medium text-slate-300">Triaj Hemşiresi / Paramedik</label>
+                        <span id="lbl_triage" class="text-sm font-bold text-blue-400">2</span>
+                    </div>
+                    <input type="range" id="inp_triage" min="1" max="5" value="2" class="w-full accent-blue-500">
+                </div>
+
+                <!-- Doctors -->
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <label class="text-sm font-medium text-slate-300">Aktif Hekim (Muayene)</label>
+                        <span id="lbl_doctor" class="text-sm font-bold text-blue-400">4</span>
+                    </div>
+                    <input type="range" id="inp_doctor" min="1" max="12" value="4" class="w-full accent-blue-500">
+                </div>
+
+                <!-- Beds -->
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <label class="text-sm font-medium text-slate-300">Müşahade Yatağı</label>
+                        <span id="lbl_bed" class="text-sm font-bold text-blue-400">20</span>
+                    </div>
+                    <input type="range" id="inp_bed" min="5" max="50" value="20" class="w-full accent-blue-500">
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="space-y-4 pt-4 border-t border-slate-800">
+                <div class="flex gap-2">
+                    <button id="btn_start" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg text-sm font-medium transition-colors shadow-[0_0_15px_rgba(37,99,235,0.3)]">Başlat</button>
+                    <button id="btn_report" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white py-2 rounded-lg text-sm font-medium transition-colors hidden shadow-[0_0_15px_rgba(147,51,234,0.3)]">Günü Raporla</button>
+                    <button id="btn_reset" class="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 py-2 rounded-lg text-sm font-medium transition-colors">Sıfırla</button>
+                </div>
+                
+                <div class="flex justify-between items-center bg-slate-950 p-2 rounded-lg border border-slate-800">
+                    <span class="text-xs text-slate-400 px-2">Akış Hızı:</span>
+                    <div class="flex gap-1">
+                        <button class="speed-btn px-3 py-1 text-xs rounded bg-blue-600 text-white" data-speed="1">1x</button>
+                        <button class="speed-btn px-3 py-1 text-xs rounded bg-slate-800 text-slate-400 hover:bg-slate-700" data-speed="5">5x</button>
+                        <button class="speed-btn px-3 py-1 text-xs rounded bg-slate-800 text-slate-400 hover:bg-slate-700" data-speed="20">20x</button>
+                    </div>
+                </div>
+
+                <button id="btn_export" class="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-lg text-sm font-medium transition-colors shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Gerçek Verileri CSV İndir
+                </button>
+            </div>
+            
+            <!-- Realtime Metrics Panel -->
+            <div class="bg-slate-950 rounded-xl p-4 border border-slate-800 space-y-3">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-slate-400">Sanal Saat</span>
+                    <span id="lbl_time" class="text-sm font-mono text-white">00:00</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-slate-400">Toplam Hasta</span>
+                    <span id="lbl_total_patients" class="text-sm font-bold text-white">0</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-slate-400">Aktif Tıkanıklık (MTS İhlali)</span>
+                    <span id="lbl_violations" class="text-sm font-bold text-red-400">0</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-slate-400">Sıra Beklemeden Terk (LWBS)</span>
+                    <span id="lbl_lwbs" class="text-sm font-bold text-red-500">0</span>
+                </div>
+                <div class="flex justify-between items-center border-t border-slate-800 pt-2">
+                    <span class="text-xs text-emerald-400 font-medium">Taburcu Edilen Hasta</span>
+                    <span id="lbl_discharged" class="text-sm font-bold text-emerald-400">0</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-full bg-slate-950 relative overflow-hidden">
+        
+        <!-- Pipeline Visualization -->
+        <div class="h-72 border-b border-slate-800 bg-slate-900/50 p-6 flex flex-col shrink-0">
+            <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-6">Canlı Akış Boru Hattı (Pipeline)</h2>
+            <div class="flex-1 flex items-start justify-between gap-4 px-4 relative mt-2">
+                <!-- Connector Line -->
+                <div class="absolute left-10 right-10 top-8 h-1 bg-slate-800 z-0 rounded"></div>
+                
+                <!-- Stages -->
+                <div class="stage flex flex-col items-center z-10 w-32">
+                    <div class="w-16 h-16 bg-slate-800 border-2 border-slate-700 rounded-2xl flex items-center justify-center mb-3 shadow-lg">
+                        <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path></svg>
+                    </div>
+                    <span class="text-xs font-medium text-slate-300">1. GİRİŞ</span>
+                    <div id="vis_in" class="mt-2 h-10 flex flex-wrap justify-center overflow-hidden"></div>
+                </div>
+
+                <div class="stage flex flex-col items-center z-10 w-32">
+                    <div class="w-16 h-16 bg-slate-800 border-2 border-slate-700 rounded-2xl flex items-center justify-center mb-3 shadow-lg relative">
+                        <span id="badge_triage" class="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">0</span>
+                        <svg class="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                    </div>
+                    <span class="text-xs font-medium text-slate-300">2. TRİAJ</span>
+                    <div id="vis_triage" class="mt-2 h-10 flex flex-wrap justify-center overflow-hidden w-full"></div>
+                </div>
+
+                <div class="stage flex flex-col items-center z-10 w-48">
+                    <div class="w-20 h-16 bg-slate-800 border-2 border-slate-700 rounded-2xl flex items-center justify-center mb-3 shadow-lg relative">
+                        <span id="badge_wait" class="absolute -top-2 -right-2 bg-yellow-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">0</span>
+                        <svg class="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    </div>
+                    <span class="text-xs font-medium text-slate-300">3. BEKLEME</span>
+                    <div id="vis_wait" class="mt-1 h-8 flex flex-wrap justify-center overflow-hidden w-full"></div>
+                    
+                    <!-- LWBS Abandonment Dropdown Box -->
+                    <svg class="w-4 h-4 text-slate-600 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                    <div class="mt-1 px-3 py-1 bg-slate-950 border border-slate-800 rounded flex items-center justify-center gap-2 shadow-lg w-full max-w-[120px]">
+                        <span class="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Terk Eden</span>
+                        <span id="badge_lwbs" class="text-xs font-bold text-red-500">0</span>
+                    </div>
+                </div>
+
+                <div class="stage flex flex-col items-center z-10 w-32">
+                    <div class="w-16 h-16 bg-slate-800 border-2 border-slate-700 rounded-2xl flex items-center justify-center mb-3 shadow-lg relative">
+                        <span id="badge_exam" class="absolute -top-2 -right-2 bg-purple-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">0</span>
+                        <svg class="w-8 h-8 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                    </div>
+                    <span class="text-xs font-medium text-slate-300">4. MUAYENE</span>
+                    <div id="vis_exam" class="mt-2 h-10 flex flex-wrap justify-center overflow-hidden w-full"></div>
+                </div>
+
+                <div class="stage flex flex-col items-center z-10 w-32">
+                    <div class="w-16 h-16 bg-slate-800 border-2 border-slate-700 rounded-2xl flex items-center justify-center mb-3 shadow-lg relative">
+                        <span id="badge_bed" class="absolute -top-2 -right-2 bg-emerald-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">0</span>
+                        <svg class="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    </div>
+                    <span class="text-xs font-medium text-slate-300 text-center">5. MÜŞAHADE & TABURCU</span>
+                    <div id="vis_out" class="mt-2 h-10 flex flex-wrap justify-center overflow-hidden w-full"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Body with Charts & Announcements -->
+        <div class="flex-1 p-6 flex flex-col gap-4 overflow-y-auto">
+
+            <!-- Charts Grid Row 1 (2 Charts) -->
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 shrink-0">
+                <!-- Line Chart Container -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex flex-col h-64">
+                    <div class="mb-4">
+                        <h3 class="text-sm font-semibold text-white">Zamana Göre Darboğaz ve Bekleme Analizi</h3>
+                        <p class="text-[10px] text-slate-400">Simülasyon süresince ortalama bekleme sürelerinin değişimi</p>
+                    </div>
+                    <div class="flex-1 relative">
+                        <canvas id="chartWaitTime"></canvas>
+                    </div>
+                </div>
+
+                <!-- Bar Chart Container -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex flex-col h-64">
+                    <div class="mb-4">
+                        <h3 class="text-sm font-semibold text-white">MTS Renk Sınıflarına Göre Aktif Yoğunluk</h3>
+                        <p class="text-[10px] text-slate-400">Şu an kuyrukta bekleyen hasta dağılımı</p>
+                    </div>
+                    <div class="flex-1 relative">
+                        <canvas id="chartQueue"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart Row 2 (Full Width) -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex flex-col min-h-[280px] shrink-0">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-4 gap-4">
+                    <div>
+                        <h3 class="text-sm font-semibold text-white">Kaynak Kullanım Oranı ve Verimlilik Analizi</h3>
+                        <p class="text-[10px] text-slate-400">Canlı personel ve yatak kapasitesi doluluk oranı (Boarding risk analizörü)</p>
+                    </div>
+                    <!-- Performance Score Cards -->
+                    <div class="flex gap-3">
+                        <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 flex flex-col min-w-[170px] shadow-inner">
+                            <span class="text-[9px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">Anlık MTS Uyumluluk Oranı</span>
+                            <span id="lbl_compliance" class="text-lg font-bold text-emerald-400">%100.0</span>
+                        </div>
+                        <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 flex flex-col min-w-[200px] shadow-inner">
+                            <span class="text-[9px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">Kaynak Planlama Durumu</span>
+                            <span id="lbl_resource_status" class="text-xs font-semibold text-emerald-400 mt-1">Optimum Planlama (Maksimum Verim)</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-1 relative">
+                    <canvas id="chartUsage"></canvas>
+                </div>
+            </div>
+            
+            <!-- Live Announcement Board -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg shrink-0">
+                <div class="flex items-center gap-2 mb-3 border-b border-slate-800 pb-2">
+                    <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                    <h3 class="text-sm font-semibold text-white">Canlı Acil Servis Anonsları & Log Akışı</h3>
+                </div>
+                <div id="announcement_list" class="space-y-2 h-[160px] overflow-y-auto flex flex-col justify-start pr-2">
+                    <!-- Announcements dynamically injected here with scrollbar history -->
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Modal: Şık Gün Sonu Raporu -->
+    <div id="modal_eod" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden transform transition-all flex flex-col max-h-[90vh]">
+            <div class="bg-slate-800 px-6 py-5 border-b border-slate-700 flex justify-center items-center shrink-0">
+                <h2 class="text-xl font-bold text-white tracking-wider flex items-center gap-3">
+                    <span class="text-2xl">📊</span> ACİL SERVİS KARAR DESTEK RAPORU
+                </h2>
+            </div>
+            
+            <div class="p-8 space-y-8 overflow-y-auto flex-1">
+                
+                <!-- A) A/B Testi -->
+                <div class="space-y-3">
+                    <h3 class="text-sm font-bold text-orange-400 uppercase tracking-widest flex items-center gap-2 border-b border-slate-800 pb-2">
+                        <span>📊</span> A) OPERASYONEL SENARYO KARŞILAŞTIRMASI (A/B TESTİ)
+                    </h3>
+                    <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-5 shadow-inner space-y-4">
+                        <div class="flex flex-col md:flex-row justify-between gap-4">
+                            <div class="flex-1 bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                <span class="text-xs text-slate-500 uppercase font-bold block mb-1">Başlangıç Kadrosu</span>
+                                <span id="eod_initial_staff" class="text-sm text-slate-300 font-medium"></span>
+                            </div>
+                            <div class="flex-1 bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                <span class="text-xs text-emerald-500 uppercase font-bold block mb-1">Optimize Edilen Güncel Kadro</span>
+                                <span id="eod_current_staff" class="text-sm text-emerald-400 font-medium"></span>
+                            </div>
+                        </div>
+                        <div id="eod_ab_analysis" class="text-sm text-slate-300 font-medium leading-relaxed space-y-2 mt-2">
+                            <!-- JS Dinamik -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- B) Operasyonel Karne -->
+                <div class="space-y-3">
+                    <h3 class="text-sm font-bold text-blue-400 uppercase tracking-widest flex items-center gap-2 border-b border-slate-800 pb-2">
+                        <span>📋</span> B) ANLIK OPERASYONEL KARNE
+                    </h3>
+                    <ul class="space-y-3">
+                        <li class="flex justify-between items-center bg-slate-950/50 p-4 rounded-xl border border-slate-800 shadow-inner">
+                            <span class="text-slate-400 font-medium">Toplam Başvuran Hasta Sayısı</span>
+                            <span id="eod_total" class="font-bold text-white text-xl">0</span>
+                        </li>
+                        <li class="flex justify-between items-center bg-slate-950/50 p-4 rounded-xl border border-slate-800 shadow-inner">
+                            <span class="text-slate-400 font-medium">Başarıyla Taburcu Edilen Toplam Hasta Sayısı</span>
+                            <span id="eod_discharged_total" class="font-bold text-emerald-400 text-xl">0</span>
+                        </li>
+                        <li class="flex justify-between items-center bg-slate-950/50 p-4 rounded-xl border border-slate-800 shadow-inner">
+                            <span class="text-slate-400 font-medium">Sıra Beklemeden Ayrılan Toplam Hasta (LWBS)</span>
+                            <span id="eod_lwbs" class="font-bold text-red-400 text-xl">0</span>
+                        </li>
+                        <li class="flex justify-between items-center bg-slate-950/50 p-4 rounded-xl border border-slate-800 shadow-inner">
+                            <span class="text-slate-400 font-medium">Ortalama MTS Protokol Uyumluluk Skoru</span>
+                            <span id="eod_compliance" class="font-bold text-blue-400 text-xl">%100.0</span>
+                        </li>
+                        <li class="flex justify-between items-center bg-slate-950/50 p-4 rounded-xl border border-slate-800 shadow-inner">
+                            <span class="text-slate-400 font-medium">En Uzun Süre Bekleyen Hastanın Bekleme Süresi</span>
+                            <span id="eod_max_wait" class="font-bold text-white text-xl">0 dk</span>
+                        </li>
+                        <li class="flex justify-between items-center bg-slate-950/50 p-4 rounded-xl border border-slate-800 shadow-inner">
+                            <span class="text-slate-400 font-medium">Ortalama Hasta Bekleme Süresi</span>
+                            <span id="eod_avg_wait" class="font-bold text-white text-xl">0 dk</span>
+                        </li>
+                    </ul>
+                </div>
+
+
+
+            </div>
+            
+            <div class="px-8 py-5 border-t border-slate-700 bg-slate-800/80 flex justify-end gap-3 shrink-0">
+                <button onclick="resumeSimFromModal()" class="bg-slate-600 hover:bg-slate-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-all shadow-lg hover:shadow-slate-500/20">Simülasyona Geri Dön</button>
+                <button onclick="resetSimFromModal()" class="bg-red-600 hover:bg-red-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-all shadow-lg hover:shadow-red-500/20">Yeni Günü Başlat / Sıfırla</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Logic (Math & Simulation) -->
+    <script>
+        /**
+         * MATEMATİKSEL MODEL & TRİAJ PROTOKOLÜ (MTS)
+         * Kuyruk Teorisi, Poisson Gelişleri, Eksponansiyel İşlemler
+         */
+        const MTS_PROTOCOLS = {
+            KIRMIZI: { weight: 0.05, maxWait: 0, avgProcess: 45, colorHex: '#ef4444' },
+            TURUNCU: { weight: 0.15, maxWait: 10, avgProcess: 30, colorHex: '#f97316' },
+            SARI:    { weight: 0.35, maxWait: 60, avgProcess: 20, colorHex: '#eab308' },
+            YESIL:   { weight: 0.35, maxWait: 120, avgProcess: 15, colorHex: '#22c55e' },
+            MAVI:    { weight: 0.10, maxWait: 240, avgProcess: 10, colorHex: '#3b82f6' }
+        };
+
+        // State Variables
+        let state = {
+            isRunning: false,
+            simSpeed: 1, 
+            virtualMinutes: 0,
+            
+            // Initial Parameters for A/B Test
+            initialDoctors: 0,
+            initialTriageStaff: 0,
+            initialBeds: 0,
+
+            // Parameters
+            lambda: 30, 
+            triageStaff: 2,
+            doctors: 4,
+            beds: 20,
+
+            // Queues & Active
+            triageQueue: [], 
+            triageActive: [], 
+            waitRoomQueue: [], 
+            examActive: [], 
+            bedActive: [], 
+
+            // Stats & Logs
+            totalPatients: 0,
+            violations: 0,
+            lwbsTotal: 0, 
+            dischargedTotal: 0,
+            logs: [], 
+            timeSeriesData: { labels: [], waitTimes: [] },
+            
+            // For Rolling Compliance (last 30 mins)
+            complianceHistory: [], // { time: virtualMinute, violated: boolean }
+
+            // Internal timing
+            nextArrivalTime: 0,
+            intervalId: null,
+            
+            // Announcement state
+            recentViolationAnnounced: 0,
+            bedFullAnnounced: false,
+            lastLwbsAnnounced: 0,
+            lastTriageAnnounced: 0,
+            lastExamAnnounced: 0,
+            recentDischarges: 0,
+            lastDischargeAnnounced: 0
+        };
+
+        // DOM Elements
+        const DOM = {
+            inp_lambda: document.getElementById('inp_lambda'), lbl_lambda: document.getElementById('lbl_lambda'),
+            inp_triage: document.getElementById('inp_triage'), lbl_triage: document.getElementById('lbl_triage'),
+            inp_doctor: document.getElementById('inp_doctor'), lbl_doctor: document.getElementById('lbl_doctor'),
+            inp_bed: document.getElementById('inp_bed'), lbl_bed: document.getElementById('lbl_bed'),
+            
+            btn_start: document.getElementById('btn_start'),
+            btn_report: document.getElementById('btn_report'),
+            btn_reset: document.getElementById('btn_reset'),
+            btn_export: document.getElementById('btn_export'),
+            speed_btns: document.querySelectorAll('.speed-btn'),
+            
+            lbl_time: document.getElementById('lbl_time'),
+            lbl_total: document.getElementById('lbl_total_patients'),
+            lbl_violations: document.getElementById('lbl_violations'),
+            lbl_lwbs: document.getElementById('lbl_lwbs'),
+            lbl_discharged: document.getElementById('lbl_discharged'),
+
+            // Pipeline
+            vis_in: document.getElementById('vis_in'),
+            vis_triage: document.getElementById('vis_triage'),
+            vis_wait: document.getElementById('vis_wait'),
+            vis_exam: document.getElementById('vis_exam'),
+            vis_out: document.getElementById('vis_out'), 
+            
+            b_triage: document.getElementById('badge_triage'),
+            b_wait: document.getElementById('badge_wait'),
+            b_exam: document.getElementById('badge_exam'),
+            b_lwbs: document.getElementById('badge_lwbs'),
+            b_bed: document.getElementById('badge_bed'),
+
+            // Scorecards
+            lbl_compliance: document.getElementById('lbl_compliance'),
+            lbl_resource_status: document.getElementById('lbl_resource_status'),
+            
+            // Announcements
+            announcement_list: document.getElementById('announcement_list'),
+
+            // Modal
+            modal_eod: document.getElementById('modal_eod')
+        };
+
+        // Charts Init
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.font.size = 12;
+        
+        let chartWaitTime = new Chart(document.getElementById('chartWaitTime'), {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Ortalama Bekleme (dk)', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderWidth: 2, fill: true, tension: 0.4 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { 
+                        title: { display: true, text: 'Simülasyon Süresi (Sanal Dakika)', font: { size: 14, weight: '500' } }, 
+                        grid: { color: 'rgba(30, 41, 59, 0.4)' },
+                        ticks: { font: { size: 12 } }
+                    },
+                    y: { 
+                        title: { display: true, text: 'Bekleme Süresi (Dakika)', font: { size: 14, weight: '500' } }, 
+                        grid: { color: 'rgba(30, 41, 59, 0.4)' }, 
+                        beginAtZero: true,
+                        suggestedMax: 240,
+                        ticks: { font: { size: 12 } }
+                    }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        let chartQueue = new Chart(document.getElementById('chartQueue'), {
+            type: 'bar',
+            data: {
+                labels: ['KIRMIZI', 'TURUNCU', 'SARI', 'YEŞİL', 'MAVİ'],
+                datasets: [{
+                    label: 'Bekleyen Hasta',
+                    data: [0,0,0,0,0],
+                    backgroundColor: [MTS_PROTOCOLS.KIRMIZI.colorHex, MTS_PROTOCOLS.TURUNCU.colorHex, MTS_PROTOCOLS.SARI.colorHex, MTS_PROTOCOLS.YESIL.colorHex, MTS_PROTOCOLS.MAVI.colorHex],
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { 
+                        title: { display: true, text: 'MTS Sınıfları', font: { size: 14, weight: '500' } },
+                        grid: { display: false },
+                        ticks: { font: { size: 12 } }
+                    },
+                    y: { 
+                        title: { display: true, text: 'Kuyruk (Kişi)', font: { size: 14, weight: '500' } }, 
+                        grid: { color: 'rgba(30, 41, 59, 0.4)' }, 
+                        beginAtZero: true, 
+                        ticks: { stepSize: 1, font: { size: 12 } } 
+                    }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        let chartUsage = new Chart(document.getElementById('chartUsage'), {
+            type: 'bar',
+            data: {
+                labels: ['Triaj Hemşiresi', 'Aktif Hekim', 'Müşahade Yatağı'],
+                datasets: [{
+                    label: 'Kullanım Oranı (%)',
+                    data: [0, 0, 0],
+                    backgroundColor: ['#3b82f6', '#3b82f6', '#3b82f6'],
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { 
+                        title: { display: true, text: 'Hastane Kaynakları', font: { size: 14, weight: '500' } },
+                        grid: { display: false },
+                        ticks: { font: { size: 12 } }
+                    },
+                    y: { 
+                        title: { display: true, text: 'Kullanım Oranı (%)', font: { size: 14, weight: '500' } }, 
+                        grid: { color: 'rgba(30, 41, 59, 0.4)' }, 
+                        min: 0, 
+                        max: 100,
+                        ticks: { font: { size: 12 } }
+                    }
+                },
+                plugins: { legend: { display: false } },
+                animation: { duration: 200 } 
+            }
+        });
+
+        // Live Announcement Function
+        function addAnnouncement(text, typeClass) {
+            let h = Math.floor(state.virtualMinutes / 60).toString().padStart(2,'0');
+            let m = (state.virtualMinutes % 60).toString().padStart(2,'0');
+            let timeStr = `[${h}:${m}]`;
+            
+            let el = document.createElement('div');
+            el.className = `log-enter text-xs px-3 py-2 rounded bg-slate-950 border-l-2 ${typeClass} text-slate-300 shadow-md font-mono flex items-start gap-2 shrink-0`;
+            
+            let emoji = text.substring(0, 2);
+            let message = text.substring(2).trim();
+            if(!message.startsWith('[')) {
+                message = text;
+                emoji = "ℹ️";
+            }
+            
+            el.innerHTML = `<span>${emoji}</span><div><strong class="text-white">${timeStr}</strong> ${message}</div>`;
+            
+            DOM.announcement_list.prepend(el);
+            
+            while(DOM.announcement_list.children.length > 50) {
+                DOM.announcement_list.removeChild(DOM.announcement_list.lastChild);
+            }
+        }
+
+        function calculateRollingCompliance() {
+            let windowStart = Math.max(0, state.virtualMinutes - 30);
+            state.complianceHistory = state.complianceHistory.filter(e => e.time >= windowStart);
+
+            let totalInWindow = state.complianceHistory.length;
+            let violationsInWindow = state.complianceHistory.filter(e => e.violated).length;
+
+            state.waitRoomQueue.forEach(p => {
+                totalInWindow++;
+                if (p.violated) violationsInWindow++;
+            });
+
+            let compliance = 100;
+            if (totalInWindow > 0) {
+                compliance = Math.max(0, ((totalInWindow - violationsInWindow) / totalInWindow) * 100);
+            }
+            return compliance;
+        }
+
+        function updateUsageChart(skipAnimation = false) {
+            let currentExamPatients = parseInt(DOM.b_exam.innerText) || 0;
+            let currentTriagePatients = parseInt(DOM.b_triage.innerText) || 0;
+            let currentBedPatients = parseInt(DOM.b_bed.innerText) || 0;
+
+            let triageUsage = Math.min((currentTriagePatients / state.triageStaff) * 100, 100);
+            let docUsage = Math.min((currentExamPatients / state.doctors) * 100, 100);
+            let bedUsage = Math.min((currentBedPatients / state.beds) * 100, 100);
+
+            chartUsage.data.datasets[0].data = [triageUsage, docUsage, bedUsage];
+            chartUsage.data.datasets[0].backgroundColor = [
+                triageUsage >= 85 ? '#ef4444' : '#3b82f6',
+                docUsage >= 85 ? '#ef4444' : '#3b82f6',
+                bedUsage >= 85 ? '#ef4444' : '#3b82f6'
+            ];
+            
+            if (skipAnimation) {
+                chartUsage.update('none');
+            } else {
+                chartUsage.update();
+            }
+
+            let rollingCompliance = calculateRollingCompliance();
+            DOM.lbl_compliance.innerText = '%' + rollingCompliance.toFixed(1);
+
+            if (rollingCompliance >= 85) DOM.lbl_compliance.className = "text-lg font-bold text-emerald-400";
+            else if (rollingCompliance >= 60) DOM.lbl_compliance.className = "text-lg font-bold text-yellow-400";
+            else DOM.lbl_compliance.className = "text-lg font-bold text-red-500";
+
+            if (docUsage >= 85) {
+                DOM.lbl_resource_status.innerText = "Aşırı Yüklenme (Tıbbi Hata Riski)";
+                DOM.lbl_resource_status.className = "text-xs font-semibold text-red-500 mt-1";
+            } else if (docUsage < 45) {
+                DOM.lbl_resource_status.innerText = "Atıl Kapasite (Düşük Verimlilik)";
+                DOM.lbl_resource_status.className = "text-xs font-semibold text-slate-400 mt-1";
+            } else {
+                DOM.lbl_resource_status.innerText = "Optimum Planlama (Maksimum Verim)";
+                DOM.lbl_resource_status.className = "text-xs font-semibold text-emerald-400 mt-1";
+            }
+        }
+
+        // Modal Functionality
+        function showEODModal() {
+            pauseSim();
+            DOM.btn_start.innerText = "Devam Et";
+            DOM.btn_start.classList.replace('bg-orange-600', 'bg-blue-600');
+            DOM.btn_start.classList.replace('hover:bg-orange-500', 'hover:bg-blue-500');
+            DOM.btn_start.classList.replace('shadow-[0_0_15px_rgba(234,88,12,0.3)]', 'shadow-[0_0_15px_rgba(37,99,235,0.3)]');
+            
+            // A) A/B Testi
+            document.getElementById('eod_initial_staff').innerText = `${state.initialDoctors} Hekim, ${state.initialTriageStaff} Triaj Hemşiresi, ${state.initialBeds} Müşahade Yatağı`;
+            document.getElementById('eod_current_staff').innerText = `${state.doctors} Hekim, ${state.triageStaff} Triaj Hemşiresi, ${state.beds} Müşahade Yatağı`;
+
+            let abAnalysisHtml = "";
+            
+            // 1. HEKİM YATIRIM ANALİZİ
+            if (state.waitRoomQueue.length > 25) {
+                abAnalysisHtml += `<p class="text-red-400">⚠️ <strong>Kritik Hekim Darboğazı:</strong> Simülasyon sonu verilerine göre Muayene Bekleme Alanında aktif olarak ${state.waitRoomQueue.length} hasta birikmiştir. Aktif Hekim sayısı (${state.doctors} Hekim), Poisson hasta giriş dalgasını eritmeye yetmemiştir. Operasyonel verimlilik için hekim kadrosunun artırılması lojistik bir zorunluluktur.</p>`;
+            } else if (state.waitRoomQueue.length <= 25 && state.doctors > state.initialDoctors) {
+                abAnalysisHtml += `<p class="text-emerald-400">📈 <strong>Başarılı Hekim Optimizasyonu:</strong> Başlangıçtaki hekim kadrosu simülasyon esnasında ${state.doctors} seviyesine çıkarılarak doğru bir karar alınmıştır. Bu kaynak artırımı sayesinde muayene kuyruğu ${state.waitRoomQueue.length} seviyesinde baskılanmış ve birim zamanda başarıyla TABURCU edilen hasta hacminde doğrusal artış sağlanmıştır.</p>`;
+            }
+
+            // 2. TRİAJ HEMŞİRESİ YATIRIM ANALİZİ
+            if (state.triageQueue.length > 15) {
+                abAnalysisHtml += `<p class="text-red-400">⚠️ <strong>Triaj Operasyon Riski:</strong> Acil servis giriş kapısında ve triaj alanında ${state.triageQueue.length} hasta birikmiştir. Mevcut ${state.triageStaff} Triaj Hemşiresi süreç hızına yetişememiştir. Bu durum hastaların muayeneye geçişini bloke etmekte ve hasta kaybını (LWBS) tetiklemektedir.</p>`;
+            } else if (state.triageQueue.length <= 15 && state.triageStaff > state.initialTriageStaff) {
+                abAnalysisHtml += `<p class="text-emerald-400">📈 <strong>Etkin Triaj Yönetimi:</strong> Triaj kadrosu ${state.triageStaff} seviyesine yükseltilerek acil servis girişindeki darboğaz başarıyla kırılmıştır. Hastaların bekleme alanına transfer hızı optimize edilerek kapıdan medikal süreç tamamlanmadan ayrılma riski minimize edilmiştir.</p>`;
+            }
+
+            // 3. HİÇBİR KRİZ YOKSA VEYA MÜDAHALE YAPILMADAN SİSTEM DENGELİYSE
+            if (state.triageQueue.length <= 15 && state.waitRoomQueue.length <= 25 && abAnalysisHtml === "") {
+                let unchanged = (state.doctors === state.initialDoctors && state.triageStaff === state.initialTriageStaff && state.beds === state.initialBeds);
+                if (unchanged) {
+                    abAnalysisHtml = `<p class="text-yellow-500">⚠️ <strong>Sabit Vardiya Performans Analizi:</strong> Simülasyon boyunca kaynak artırımı veya dinamik optimizasyon yapılmamıştır. Mevcut statik kadro yapısı, gelen hasta dalgalanmalarını eritememiş ve <strong>${state.lwbsTotal}</strong> hastanın sistemden kaçmasına yol açmıştır. Lütfen sol paneldeki sürgüleri kullanarak dinamik kararların etkisini (A/B Testi) yeniden gözlemleyiniz.</p>`;
+                } else {
+                    abAnalysisHtml = `<p class="text-emerald-400">✅ <strong>Maksimum Operasyonel Denge:</strong> Tebrikler! Yönetici tarafından belirlenen ${state.triageStaff} Hemşire, ${state.doctors} Hekim ve ${state.beds} Müşahade Yatağı planlaması, saatlik ${state.lambda} hasta giriş hızıyla tam bir lojistik uyum içerisindedir. Sistemde aktif bir darboğaz oluşmamış, kaynaklar atıl kalmadan maksimum verimle yönetilmiştir.</p>`;
+                }
+            }
+            
+            document.getElementById('eod_ab_analysis').innerHTML = abAnalysisHtml;
+
+            // B) Operasyonel Karne
+            let total = state.totalPatients;
+            let onTime = total - state.violations;
+            if (onTime < 0) onTime = 0;
+
+            document.getElementById('eod_total').innerText = total;
+            document.getElementById('eod_discharged_total').innerText = state.dischargedTotal;
+            document.getElementById('eod_lwbs').innerText = state.lwbsTotal;
+            
+            let finalCompliance = 100;
+            if (total > 0) {
+                finalCompliance = Math.max(0, (onTime / total) * 100);
+            }
+            document.getElementById('eod_compliance').innerText = '%' + finalCompliance.toFixed(1);
+
+            // Bekleme Sürelerini Hesapla
+            let waitTimes = state.logs
+                .filter(l => l.muayene_bekleme !== 'YOK (TERK)')
+                .map(l => l.muayene_bekleme);
+            let currentWaits = state.waitRoomQueue.map(p => state.virtualMinutes - p.waitRoomEnterTime);
+            let allWaits = waitTimes.concat(currentWaits);
+            
+            let overallMaxWait = allWaits.length > 0 ? Math.max(...allWaits) : 0;
+            let overallAvgWait = allWaits.length > 0 ? Math.round(allWaits.reduce((a,b)=>a+b,0)/allWaits.length) : 0;
+            
+            document.getElementById('eod_avg_wait').innerText = overallAvgWait + ' dk';
+            document.getElementById('eod_max_wait').innerText = overallMaxWait + ' dk';
+
+            DOM.modal_eod.classList.remove('hidden');
+        }
+
+        window.resumeSimFromModal = function() {
+            DOM.modal_eod.classList.add('hidden');
+        }
+
+        window.resetSimFromModal = function() {
+            DOM.modal_eod.classList.add('hidden');
+            resetSim();
+            DOM.btn_report.classList.add('hidden');
+            DOM.btn_start.innerText = "Başlat";
+            DOM.btn_start.classList.replace('bg-orange-600', 'bg-blue-600');
+            DOM.btn_start.classList.replace('hover:bg-orange-500', 'hover:bg-blue-500');
+            DOM.btn_start.classList.replace('shadow-[0_0_15px_rgba(234,88,12,0.3)]', 'shadow-[0_0_15px_rgba(37,99,235,0.3)]');
+        }
+
+        function processQueuesImmediately() {
+            while (state.triageActive.length < state.triageStaff && state.triageQueue.length > 0) {
+                let p = state.triageQueue.shift();
+                p.triageEnterTime = state.virtualMinutes;
+                state.triageActive.push(p);
+            }
+            
+            // KIRMIZI ve öncelikli hastaları kesinlikle en öne al
+            const priorityMap = { 'KIRMIZI': 5, 'TURUNCU': 4, 'SARI': 3, 'YESIL': 2, 'MAVI': 1 };
+            state.waitRoomQueue.sort((a, b) => {
+                if (priorityMap[a.mtsColor] !== priorityMap[b.mtsColor]) return priorityMap[b.mtsColor] - priorityMap[a.mtsColor];
+                return a.waitRoomEnterTime - b.waitRoomEnterTime; 
+            });
+
+            while (state.examActive.length < state.doctors && state.waitRoomQueue.length > 0) {
+                let p = state.waitRoomQueue.shift();
+                p.examEnterTime = state.virtualMinutes;
+                state.complianceHistory.push({ time: state.virtualMinutes, violated: p.violated });
+                state.examActive.push(p);
+            }
+        }
+
+        // Event Listeners for UI
+        const syncLabel = (inp, lbl, stateKey) => {
+            inp.addEventListener('input', (e) => {
+                let newVal = parseFloat(e.target.value);
+                lbl.innerText = newVal;
+                state[stateKey] = newVal;
+                
+                if (state.isRunning) {
+                    processQueuesImmediately();
+                    updatePipelineVisuals([]);
+                }
+                
+                updateUI();
+                updateUsageChart(true);
+            });
+            
+            inp.addEventListener('change', (e) => {
+                let newVal = parseFloat(e.target.value);
+                if ((stateKey === 'doctors' || stateKey === 'triageStaff')) {
+                    addAnnouncement('✅ Sistem: Yeni nöbetçi personel acil serviste aktif göreve başlamıştır.', 'border-emerald-500');
+                }
+                if(stateKey === 'lambda') {
+                    scheduleNextArrival();
+                }
+                
+                if (state.isRunning) {
+                    processQueuesImmediately();
+                    updatePipelineVisuals([]);
+                }
+                updateUI();
+                updateUsageChart(true);
+            });
+        };
+        syncLabel(DOM.inp_lambda, DOM.lbl_lambda, 'lambda');
+        syncLabel(DOM.inp_triage, DOM.lbl_triage, 'triageStaff');
+        syncLabel(DOM.inp_doctor, DOM.lbl_doctor, 'doctors');
+        syncLabel(DOM.inp_bed, DOM.lbl_bed, 'beds');
+
+        DOM.speed_btns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                DOM.speed_btns.forEach(b => { b.classList.remove('bg-blue-600', 'text-white'); b.classList.add('bg-slate-800', 'text-slate-400'); });
+                e.target.classList.remove('bg-slate-800', 'text-slate-400'); e.target.classList.add('bg-blue-600', 'text-white');
+                state.simSpeed = parseInt(e.target.dataset.speed);
+                if (state.isRunning) { pauseSim(); startSim(); }
+            });
+        });
+
+        DOM.btn_start.addEventListener('click', () => {
+            if (!state.isRunning) {
+                if (state.virtualMinutes === 0) {
+                    // Lock in the initial values for end-of-day ROI calculation
+                    state.initialDoctors = state.doctors;
+                    state.initialTriageStaff = state.triageStaff;
+                    state.initialBeds = state.beds;
+                    
+                    scheduleNextArrival();
+                    addAnnouncement('ℹ️ Sistem: Acil servis simülasyonu başlatıldı.', 'border-blue-500');
+                    DOM.btn_report.classList.remove('hidden');
+                }
+                startSim();
+                DOM.btn_start.innerText = "Duraklat";
+                DOM.btn_start.classList.replace('bg-blue-600', 'bg-orange-600');
+                DOM.btn_start.classList.replace('hover:bg-blue-500', 'hover:bg-orange-500');
+                DOM.btn_start.classList.replace('shadow-[0_0_15px_rgba(37,99,235,0.3)]', 'shadow-[0_0_15px_rgba(234,88,12,0.3)]');
+            } else {
+                pauseSim();
+                DOM.btn_start.innerText = "Devam Et";
+                DOM.btn_start.classList.replace('bg-orange-600', 'bg-blue-600');
+                DOM.btn_start.classList.replace('hover:bg-orange-500', 'hover:bg-blue-500');
+                DOM.btn_start.classList.replace('shadow-[0_0_15px_rgba(234,88,12,0.3)]', 'shadow-[0_0_15px_rgba(37,99,235,0.3)]');
+            }
+        });
+
+        DOM.btn_report.addEventListener('click', () => {
+            showEODModal();
+        });
+
+        DOM.btn_reset.addEventListener('click', () => {
+            resetSim();
+            DOM.btn_report.classList.add('hidden');
+            DOM.btn_start.innerText = "Başlat";
+            DOM.btn_start.classList.replace('bg-orange-600', 'bg-blue-600');
+            DOM.btn_start.classList.replace('hover:bg-orange-500', 'hover:bg-blue-500');
+            DOM.btn_start.classList.replace('shadow-[0_0_15px_rgba(234,88,12,0.3)]', 'shadow-[0_0_15px_rgba(37,99,235,0.3)]');
+        });
+        DOM.btn_export.addEventListener('click', exportCSV);
+
+        // Core Mathematical Functions
+        function getExponentialRandom(mean) {
+            return -Math.log(1.0 - Math.random()) * mean;
+        }
+
+        function assignMTSColor() {
+            let r = Math.random();
+            let cum = 0;
+            for (let [color, data] of Object.entries(MTS_PROTOCOLS)) {
+                cum += data.weight;
+                if (r <= cum) return color;
+            }
+            return 'YESIL';
+        }
+
+        function scheduleNextArrival() {
+            let meanInterval = 60.0 / state.lambda;
+            state.nextArrivalTime = state.virtualMinutes + getExponentialRandom(meanInterval);
+        }
+
+        class Patient {
+            constructor(id, arrivalTime) {
+                this.id = id;
+                this.arrivalTime = arrivalTime; 
+                this.mtsColor = null;
+                
+                this.triageEnterTime = null;
+                this.triageDuration = getExponentialRandom(3); 
+                
+                this.waitRoomEnterTime = null;
+                this.examEnterTime = null;
+                this.examDuration = null; 
+                
+                this.dischargeTime = null;
+                this.violated = false;
+                this.lwbs = false; 
+                this.lwbsChecked = false;
+
+                this.needsBedDetermined = false;
+                this.needsBed = false;
+                this.bedDuration = 0;
+                this.bedEnterTime = null;
+            }
+        }
+
+        // Simulation Loop
+        function startSim() {
+            if (state.isRunning) return;
+            state.isRunning = true;
+            let intervalMs = 1000 / state.simSpeed;
+            state.intervalId = setInterval(tick, intervalMs);
+        }
+
+        function pauseSim() {
+            state.isRunning = false;
+            clearInterval(state.intervalId);
+        }
+
+        function resetSim() {
+            pauseSim();
+            state.virtualMinutes = 0;
+            state.totalPatients = 0;
+            state.violations = 0;
+            state.lwbsTotal = 0;
+            state.dischargedTotal = 0;
+            state.triageQueue = []; state.triageActive = [];
+            state.waitRoomQueue = []; state.examActive = []; state.bedActive = [];
+            state.logs = [];
+            state.timeSeriesData = { labels: [], waitTimes: [] };
+            state.complianceHistory = [];
+
+            state.recentViolationAnnounced = 0;
+            state.bedFullAnnounced = false;
+            state.lastLwbsAnnounced = 0;
+            state.lastTriageAnnounced = 0;
+            state.lastExamAnnounced = 0;
+            state.recentDischarges = 0;
+            state.lastDischargeAnnounced = 0;
+            
+            // Do not reset initial variables here, they are set when start is clicked again
+            scheduleNextArrival();
+            
+            updateUI();
+            
+            chartWaitTime.data.labels = []; chartWaitTime.data.datasets[0].data = []; chartWaitTime.update();
+            chartQueue.data.datasets[0].data = [0,0,0,0,0]; chartQueue.update();
+            updateUsageChart();
+            
+            DOM.vis_in.innerHTML = ''; DOM.vis_triage.innerHTML = ''; DOM.vis_wait.innerHTML = ''; DOM.vis_exam.innerHTML = ''; DOM.vis_out.innerHTML = '';
+            DOM.announcement_list.innerHTML = '';
+        }
+
+        function tick() {
+            state.virtualMinutes += 1;
+
+            if (state.virtualMinutes >= 1440) { // 24 hours
+                showEODModal();
+                return;
+            }
+            
+            // 1. Arrival Process
+            while (state.virtualMinutes >= state.nextArrivalTime) {
+                state.totalPatients++;
+                let p = new Patient(state.totalPatients, state.nextArrivalTime);
+                state.triageQueue.push(p);
+                scheduleNextArrival();
+            }
+
+            // Triaj Darboğaz Anonsu
+            if (state.triageQueue.length > 15 && state.virtualMinutes - state.lastTriageAnnounced > 10) {
+                addAnnouncement('📢 Duyuru: Triaj alanında yoğunluk artmaktadır. Giriş masasına destek Hemşire/Paramedik yönlendirilmesi gerekiyor.', 'border-orange-500');
+                state.lastTriageAnnounced = state.virtualMinutes;
+            }
+
+            // 2. Triage Process
+            while (state.triageActive.length < state.triageStaff && state.triageQueue.length > 0) {
+                let p = state.triageQueue.shift();
+                p.triageEnterTime = state.virtualMinutes;
+                state.triageActive.push(p);
+            }
+            
+            for (let i = state.triageActive.length - 1; i >= 0; i--) {
+                let p = state.triageActive[i];
+                if (state.virtualMinutes >= p.triageEnterTime + p.triageDuration) {
+                    state.triageActive.splice(i, 1);
+                    p.mtsColor = assignMTSColor();
+                    
+                    if (p.mtsColor === 'KIRMIZI') {
+                        addAnnouncement('🚨 Kırmızı Alan Alarmı: Resusitasyon odasına acil hekim ekibi bekleniyor!', 'border-red-500');
+                        p.examDuration = getExponentialRandom(MTS_PROTOCOLS[p.mtsColor].avgProcess);
+                        p.examEnterTime = state.virtualMinutes;
+                        
+                        if (state.examActive.length < state.doctors) {
+                            state.examActive.push(p);
+                        } else {
+                            let preemptTargetIndex = -1;
+                            const preemptOrder = ['MAVI', 'YESIL', 'SARI'];
+                            for (let color of preemptOrder) {
+                                preemptTargetIndex = state.examActive.findIndex(ep => ep.mtsColor === color);
+                                if (preemptTargetIndex !== -1) break;
+                            }
+                            
+                            if (preemptTargetIndex !== -1) {
+                                let preemptedP = state.examActive[preemptTargetIndex];
+                                state.examActive.splice(preemptTargetIndex, 1);
+                                state.waitRoomQueue.unshift(preemptedP);
+                                addAnnouncement('🚨 Acil Durum: Resüsitasyon vakası nedeniyle düşük öncelikli bir muayene yarıda kesildi ve hasta bekleme alanına alındı.', 'border-red-500');
+                                state.examActive.push(p);
+                            } else {
+                                state.examActive.push(p);
+                            }
+                        }
+                    } else {
+                        p.examDuration = getExponentialRandom(MTS_PROTOCOLS[p.mtsColor].avgProcess);
+                        p.waitRoomEnterTime = state.virtualMinutes;
+                        state.waitRoomQueue.push(p);
+                    }
+                }
+            }
+
+            // Muayene Darboğaz Anonsu
+            if (state.waitRoomQueue.length > 25 && state.virtualMinutes - state.lastExamAnnounced > 10) {
+                addAnnouncement('📢 Duyuru: Muayene odalarında hasta bekleme süreleri uzamıştır. Boştaki nöbetçi Hekimlerin acil servise destek vermesi rica olunur.', 'border-orange-500');
+                state.lastExamAnnounced = state.virtualMinutes;
+            }
+
+            // 3. Waiting Room
+            const priorityMap = { 'KIRMIZI': 5, 'TURUNCU': 4, 'SARI': 3, 'YESIL': 2, 'MAVI': 1 };
+            state.waitRoomQueue.sort((a, b) => {
+                if (priorityMap[a.mtsColor] !== priorityMap[b.mtsColor]) return priorityMap[b.mtsColor] - priorityMap[a.mtsColor];
+                return a.waitRoomEnterTime - b.waitRoomEnterTime; 
+            });
+
+            for (let i = state.waitRoomQueue.length - 1; i >= 0; i--) {
+                let p = state.waitRoomQueue[i];
+                let currentWait = state.virtualMinutes - p.waitRoomEnterTime;
+                
+                if (!p.violated && currentWait > MTS_PROTOCOLS[p.mtsColor].maxWait) {
+                    p.violated = true;
+                    state.violations++;
+                }
+
+                if (['SARI', 'YESIL', 'MAVI'].includes(p.mtsColor)) {
+                    if (currentWait > (MTS_PROTOCOLS[p.mtsColor].maxWait * 1.5)) {
+                        if (!p.lwbsChecked) {
+                            p.lwbsChecked = true;
+                            if (Math.random() < 0.35) { 
+                                p.dischargeTime = state.virtualMinutes;
+                                p.lwbs = true;
+                                state.lwbsTotal++; 
+                                logPatientData(p);
+                                state.complianceHistory.push({ time: state.virtualMinutes, violated: p.violated }); 
+                                state.waitRoomQueue.splice(i, 1);
+                                
+                                // LWBS Grup Anonsu
+                                if (state.virtualMinutes - state.lastLwbsAnnounced > 10) {
+                                    addAnnouncement('⚠️ Bilgi: Bekleme süresi aşımı nedeniyle bazı hastalar acil servisten ayrılmıştır (LWBS).', 'border-yellow-500');
+                                    state.lastLwbsAnnounced = state.virtualMinutes;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Assign to Doctor
+            while (state.examActive.length < state.doctors && state.waitRoomQueue.length > 0) {
+                let p = state.waitRoomQueue.shift();
+                p.examEnterTime = state.virtualMinutes;
+                state.complianceHistory.push({ time: state.virtualMinutes, violated: p.violated });
+                state.examActive.push(p);
+            }
+
+            let dischargedThisTick = [];
+
+            // 5. Exam Process -> Observation (Bed) or Discharge
+            for (let i = state.examActive.length - 1; i >= 0; i--) {
+                let p = state.examActive[i];
+                if (state.virtualMinutes >= p.examEnterTime + p.examDuration) {
+                    
+                    if (!p.needsBedDetermined) {
+                        // KESİN KURAL: %70 Taburcu, %30 Müşahade/Yatış
+                        p.needsBed = Math.random() < 0.30;
+                        p.needsBedDetermined = true;
+                        p.bedDuration = 60 + (Math.random() * 180); // 60-240 dk arası kalış
+                    }
+
+                    if (p.needsBed) {
+                        if (state.bedActive.length < state.beds) {
+                            state.examActive.splice(i, 1); 
+                            p.bedEnterTime = state.virtualMinutes;
+                            state.bedActive.push(p);
+                        }
+                    } else {
+                        state.examActive.splice(i, 1);
+                        p.dischargeTime = state.virtualMinutes;
+                        state.dischargedTotal++;
+                        dischargedThisTick.push(p);
+                        logPatientData(p);
+                    }
+                }
+            }
+
+            // Müşahade Doluluk Anonsu
+            if (state.bedActive.length >= state.beds && !state.bedFullAnnounced && state.beds > 0) {
+                addAnnouncement('🚫 Uyarı: Müşahade odası yatak kapasitesi sınırda. Taburcu süreçlerinin hızlandırılması veya ek yatak açılması gerekmektedir.', 'border-purple-500');
+                state.bedFullAnnounced = true;
+            } else if (state.bedActive.length < state.beds) {
+                state.bedFullAnnounced = false;
+            }
+
+            // 6. Observation Process -> Discharge
+            for(let i = state.bedActive.length - 1; i >= 0; i--) {
+                let p = state.bedActive[i];
+                if(state.virtualMinutes >= p.bedEnterTime + p.bedDuration) {
+                    state.bedActive.splice(i, 1);
+                    p.dischargeTime = state.virtualMinutes;
+                    state.dischargedTotal++;
+                    dischargedThisTick.push(p);
+                    logPatientData(p);
+                }
+            }
+            
+            // Taburcu Anons Kontrolü
+            if (dischargedThisTick.length > 0) {
+                state.recentDischarges += dischargedThisTick.length;
+            }
+            
+            // Ortalama 30 sanal dakikada bir veya 5 hasta biriktiğinde taburcu anonsu yap
+            if (state.recentDischarges > 0 && (state.virtualMinutes - state.lastDischargeAnnounced >= 30 || state.recentDischarges >= 5)) {
+                if (Math.random() < 0.5 || state.recentDischarges >= 5) {
+                    addAnnouncement(`✅ Bilgi: Tedavisi tamamlanan ${state.recentDischarges} adet hasta acil servisten taburcu edilmiştir.`, 'border-emerald-500');
+                    state.recentDischarges = 0;
+                    state.lastDischargeAnnounced = state.virtualMinutes;
+                }
+            }
+
+            // Expected Wait Time Calc
+            let avgWait = 0;
+            if (state.waitRoomQueue.length > 0) {
+                let totalExpectedWait = 0;
+                let queueCount = { KIRMIZI:0, TURUNCU:0, SARI:0, YESIL:0, MAVI:0 };
+                state.waitRoomQueue.forEach(p => queueCount[p.mtsColor]++);
+                
+                for(let c in queueCount) {
+                    if(queueCount[c] > 0) {
+                        totalExpectedWait += (queueCount[c] / state.doctors) * MTS_PROTOCOLS[c].avgProcess;
+                    }
+                }
+                avgWait = totalExpectedWait / Object.keys(queueCount).filter(k=>queueCount[k]>0).length;
+            }
+
+            updateUI();
+            updateCharts(avgWait);
+            updateUsageChart(); 
+            updatePipelineVisuals(dischargedThisTick);
+        }
+
+        function logPatientData(p) {
+            let triageWait = p.triageEnterTime ? (p.triageEnterTime - p.arrivalTime) : 0;
+            let examWait = p.examEnterTime ? (p.examEnterTime - p.waitRoomEnterTime) : (state.virtualMinutes - p.waitRoomEnterTime);
+            let totalStay = p.dischargeTime - p.arrivalTime;
+            
+            let ihlalDurumu = p.violated ? 'EVET' : 'HAYIR';
+            if (p.lwbs) ihlalDurumu = 'TERK (LWBS)';
+            
+            state.logs.push({
+                hasta_id: p.id,
+                giris_dk: Math.round(p.arrivalTime),
+                renk: p.mtsColor || 'BILINMIYOR',
+                triaj_bekleme: Math.round(triageWait),
+                muayene_bekleme: p.lwbs ? 'YOK (TERK)' : Math.round(examWait),
+                toplam_sure: Math.round(totalStay),
+                ihlal: ihlalDurumu
+            });
+        }
+
+        // --- UI & Visualization ---
+        function updateUI() {
+            let h = Math.floor(state.virtualMinutes / 60);
+            let m = state.virtualMinutes % 60;
+            DOM.lbl_time.innerText = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+            DOM.lbl_total.innerText = state.totalPatients;
+            DOM.lbl_violations.innerText = state.violations;
+            DOM.lbl_lwbs.innerText = state.lwbsTotal;
+            DOM.lbl_discharged.innerText = state.dischargedTotal;
+
+            DOM.b_triage.innerText = state.triageActive.length;
+            DOM.b_wait.innerText = state.waitRoomQueue.length;
+            DOM.b_exam.innerText = state.examActive.length;
+            DOM.b_bed.innerText = state.bedActive.length;
+            DOM.b_lwbs.innerText = state.lwbsTotal;
+        }
+
+        function updateCharts(avgWait) {
+            if (state.virtualMinutes % 5 === 0) {
+                state.timeSeriesData.labels.push(state.virtualMinutes);
+                state.timeSeriesData.waitTimes.push(avgWait);
+                
+                if(state.timeSeriesData.labels.length > 50) {
+                    state.timeSeriesData.labels.shift();
+                    state.timeSeriesData.waitTimes.shift();
+                }
+
+                chartWaitTime.data.labels = state.timeSeriesData.labels;
+                chartWaitTime.data.datasets[0].data = state.timeSeriesData.waitTimes;
+                chartWaitTime.update('none'); 
+            }
+
+            let qCounts = [0,0,0,0,0];
+            state.waitRoomQueue.forEach(p => {
+                if(p.mtsColor === 'KIRMIZI') qCounts[0]++;
+                else if(p.mtsColor === 'TURUNCU') qCounts[1]++;
+                else if(p.mtsColor === 'SARI') qCounts[2]++;
+                else if(p.mtsColor === 'YESIL') qCounts[3]++;
+                else if(p.mtsColor === 'MAVI') qCounts[4]++;
+            });
+            chartQueue.data.datasets[0].data = qCounts;
+            chartQueue.update('none');
+        }
+
+        function createDot(p, container, unassigned=false) {
+            let dot = document.createElement('div');
+            dot.className = 'dot';
+            dot.id = `pt_${p.id}`;
+            if(unassigned) dot.classList.add('bg-slate-400');
+            else dot.classList.add(`mts-${p.mtsColor}`);
+            
+            if (container.children.length < 50) {
+                container.appendChild(dot);
+            }
+        }
+
+        function updatePipelineVisuals(discharged) {
+            DOM.vis_in.innerHTML = '';
+            state.triageQueue.forEach(p => createDot(p, DOM.vis_in, true));
+
+            DOM.vis_triage.innerHTML = '';
+            state.triageActive.forEach(p => createDot(p, DOM.vis_triage, true));
+            
+            DOM.vis_wait.innerHTML = '';
+            state.waitRoomQueue.forEach(p => createDot(p, DOM.vis_wait));
+            
+            DOM.vis_exam.innerHTML = '';
+            state.examActive.forEach(p => createDot(p, DOM.vis_exam));
+
+            DOM.vis_out.innerHTML = '';
+            state.bedActive.forEach(p => createDot(p, DOM.vis_out));
+            
+            discharged.forEach(p => {
+                let dot = document.createElement('div');
+                dot.className = `dot mts-${p.mtsColor} transition-opacity duration-1000 opacity-100`;
+                DOM.vis_out.appendChild(dot);
+                setTimeout(() => { dot.classList.replace('opacity-100', 'opacity-0'); }, 100);
+                setTimeout(() => { if(dot.parentNode) dot.parentNode.removeChild(dot); }, 1100);
+            });
+        }
+
+        function exportCSV() {
+            if (state.logs.length === 0) {
+                alert("Henüz veri oluşmadı. Lütfen simülasyonu çalıştırın.");
+                return;
+            }
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Hasta_ID,Giris_Sanal_Dakika,Manchester_Triaj_Rengi,Triaj_Bekleme_Suresi_DK,Muayene_Bekleme_Suresi_DK,Toplam_Acilde_Kalis_Suresi_DK,MTS_Hedef_Sure_Asildi_Mi\n";
+            
+            state.logs.forEach(row => {
+                csvContent += `${row.hasta_id},${row.giris_dk},${row.renk},${row.triaj_bekleme},${row.muayene_bekleme},${row.toplam_sure},${row.ihlal}\n`;
+            });
+            
+            var encodedUri = encodeURI(csvContent);
+            var link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `mts_simulasyon_verileri_${Date.now()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+    </script>
+</body>
+</html>
